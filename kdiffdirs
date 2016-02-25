@@ -1,0 +1,38 @@
+#!/bin/bash
+
+#
+# Kaleidoscope diff of only the Git-version-controlled files in a pair of directories.
+# Optionally, limit the common subdirectories that will be compared.
+#
+
+set -e
+
+if [[ -z "$2" ]]; then
+  echo 'Usage: '`basename "$0"`' DIR DIR'
+  echo '       '`basename "$0"`' DIR DIR SUBDIR...'
+  exit 1
+fi
+
+old="$1"
+shift
+new="$1"
+shift
+# $@ is now the list of subdirs, if any
+
+echo -e "Comparing $old\t$@"
+echo -e "          $new\t$@"
+
+# for each path of a version-controlled files in either $old or $new...
+cat <(cd $old && git ls-files "$@") <(cd $new && git ls-files "$@") | sort -u | while IFS= read -r path; do
+  a="${old%%/}/$path"
+  b="${new%%/}/$path"
+  # ... represent missing files (new additions & deletions) ...
+  if [[ ! -f "$a" ]]; then
+    a=/dev/null
+  fi
+  if [[ ! -f "$b" ]]; then
+    b=/dev/null
+  fi
+  # ... and send the file to ksdiff only if there are changes
+  diff -q "$a" "$b" > /dev/null || ksdiff --partial-changeset --relative-path "$path" "$a" "$b"
+done
