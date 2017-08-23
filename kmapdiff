@@ -1,0 +1,90 @@
+#!/bin/bash
+
+#
+# Kaleidoscope diff of only the Git-version-controlled files in a pair of directories,
+# after applying transformations to filenames and text file contents.
+# Optionally, limit the subdirectories that will be compared.
+#
+
+set -e
+
+if [[ -z "$2" ]]; then
+  echo 'Usage: '`basename "$0"`' DIR DIR'
+  echo '       '`basename "$0"`' DIR DIR SUBDIR...'
+  exit 1
+fi
+
+old="$1"
+old="$(cd "$old" && pwd)"
+shift
+new="$1"
+new="$(cd "$new" && pwd)"
+shift
+# $@ is now the list of subdirs, if any
+
+# Look for mapping file in the common parent directory
+parent="$(printf "%s\n%s\n" "$old" "$new" | sed -e 'N;s/^\(.*\).*\n\1.*$/\1/' | sed 's/\(.*\/\).*/\1/')"
+map="$parent$(tr / _ <<< "diff-${old#$parent}-${new#$parent}").map"
+if [ ! -f "$map" ]; then
+  echo "Missing map `$map`"
+  exit
+fi
+
+temp="$(mktemp -d /tmp/diff.XXXX)"
+
+function finish {
+  rm -r "$temp"
+}
+trap finish EXIT
+
+old2new="$temp/old2new" # sed script for mapping old-to-new
+new2old="$temp/new2old" # sed script for mapping new-to-old
+sed -E 's/(.*) -> (.*)/s|\1|\2|/' < "$map" > "$old2new"
+sed -E 's/(.*) -> (.*)/s|\2|\1|/' < "$map" > "$new2old"
+
+# sed commands for breaking unified diffs into left and right
+omitted='s/^@.*/\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
+&\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
+/p'
+left='s/^[ -]//p'
+right='s/^[ +]//p'
+
+cat <(
+      (cd "$old" && git ls-files "$@") | sed -E -e h -e G -e 's/\n/ /' -f "$old2new" -e "s|(.*) (.*)|$old/\2 $new/\1 \1|"
+    ) <(
+      (cd "$new" && git ls-files "$@") | sed -E -e h -e G -e 's/\n/ /' -f "$new2old" -e "s|(.*) (.*)|$old/\1 $new/\2 \2|"
+    ) | sort -u | while read -r a b path; do
+  
+  bdir="$(dirname $b)"
+  if [[ ! -d "$(dirname $b)" ]]; then
+    echo "Missing $bdir"
+    continue
+  fi
+  
+  # represent missing files (new additions & deletions)
+  if [[ ! -f "$a" ]]; then
+    a=/dev/null
+  fi
+  if [[ ! -f "$b" ]]; then
+    b=/dev/null
+  fi
+  
+  if file -b "$a" | fgrep -q text; then
+    # text file: apply replacements and construct a folded diff
+    tempa="$(mktemp $temp/a.XXXXXXXX)"
+    tempb="$(mktemp $temp/b.XXXXXXXX)"
+    sed -E -f "$old2new" < "$a" > "$tempa"
+    diff -q "$tempa" "$b" > /dev/null || {
+      tempdiff="$(mktemp $temp/diff.XXXXXXXX)"
+      ! diff -U 8 "$tempa" "$b" | tail -n +3 > "$tempdiff"
+      sed -E -n -e "$omitted" -e "$left" < "$tempdiff" > "$tempa"
+      sed -E -n -e "$omitted" -e "$right" < "$tempdiff" > "$tempb"
+      ksdiff --partial-changeset --relative-path "$path" "$tempa" "$tempb"
+    }
+  else
+    # binary file
+    diff -q "$a" "$b" > /dev/null || ksdiff --partial-changeset --relative-path "$path" "$a" "$b"
+  fi
+done | uniq -c
