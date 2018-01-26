@@ -78,7 +78,7 @@ cat <(
     sed -E -f "$old2new" < "$a" > "$tempa"
     diff -q "$tempa" "$b" > /dev/null || {
       tempdiff="$(mktemp $temp/diff.XXXXXXXX)"
-      ! diff -U 8 "$tempa" "$b" | tail -n +3 > "$tempdiff"
+      ! diff -U 4 "$tempa" "$b" | tail -n +3 > "$tempdiff"
       sed -E -n -e "$omitted" -e "$left" < "$tempdiff" > "$tempa"
       sed -E -n -e "$omitted" -e "$right" < "$tempdiff" > "$tempb"
       ksdiff --partial-changeset --relative-path "$path" "$tempa" "$tempb"
