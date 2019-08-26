@@ -46,9 +46,9 @@ sed -E 's/(.*) -> (.*)/s|\2|\1|/' < "$map" > "$new2old"
 
 # sed commands for breaking unified diffs into left and right
 omitted='s/^@.*/\
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
 &\
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
 /p'
 left='s/^[ -]//p'
 right='s/^[ +]//p'
@@ -78,7 +78,7 @@ cat <(
     tempa="$(mktemp $temp/a.XXXXXXXX)"
     tempb="$(mktemp $temp/b.XXXXXXXX)"
     sed -E -f "$g_old2new" < "$a" > "$tempa"
-    diff -q "$tempa" "$b" > /dev/null || {
+    diff -q "$tempa" "$b" > /dev/null && echo Unchanged || {
       tempdiff="$(mktemp $temp/diff.XXXXXXXX)"
       ! diff -U 4 "$tempa" "$b" | tail -n +3 > "$tempdiff"
       sed -E -n -e "$omitted" -e "$left" < "$tempdiff" > "$tempa"
@@ -87,6 +87,6 @@ cat <(
     }
   else
     # binary file
-    diff -q "$a" "$b" > /dev/null || ksdiff --partial-changeset --relative-path "$path" "$a" "$b"
+    diff -q "$a" "$b" > /dev/null && echo Unchanged || ksdiff --partial-changeset --relative-path "$path" "$a" "$b"
   fi
 done | uniq -c
