@@ -37,9 +37,11 @@ function finish {
 }
 trap finish EXIT
 
-old2new="$temp/old2new" # sed script for mapping old-to-new
-new2old="$temp/new2old" # sed script for mapping new-to-old
+old2new="$temp/old2new" # sed script for 1st-match old-to-new
+g_old2new="$temp/g_old2new" # sed script for all-matches old-to-new
+new2old="$temp/new2old" # sed script for 1st-match new-to-old
 sed -E 's/(.*) -> (.*)/s|\1|\2|/' < "$map" > "$old2new"
+sed -E 's/(.*) -> (.*)/s|\1|\2|g/' < "$map" > "$g_old2new"
 sed -E 's/(.*) -> (.*)/s|\2|\1|/' < "$map" > "$new2old"
 
 # sed commands for breaking unified diffs into left and right
@@ -75,7 +77,7 @@ cat <(
     # text file: apply replacements and construct a folded diff
     tempa="$(mktemp $temp/a.XXXXXXXX)"
     tempb="$(mktemp $temp/b.XXXXXXXX)"
-    sed -E -f "$old2new" < "$a" > "$tempa"
+    sed -E -f "$g_old2new" < "$a" > "$tempa"
     diff -q "$tempa" "$b" > /dev/null || {
       tempdiff="$(mktemp $temp/diff.XXXXXXXX)"
       ! diff -U 4 "$tempa" "$b" | tail -n +3 > "$tempdiff"
