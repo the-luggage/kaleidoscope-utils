@@ -22,6 +22,12 @@ shift
 echo -e "Comparing $old\t$@"
 echo -e "          $new\t$@"
 
+gitlocation() {
+  cd $1; echo "$(basename $(git rev-parse --show-toplevel))/$(git rev-parse --show-prefix)"
+}
+
+label="$(gitlocation $old) | $(gitlocation $new)"
+
 # for each path of a version-controlled files in either $old or $new...
 cat <(cd $old && git ls-files "$@") <(cd $new && git ls-files "$@") | sort -u | while IFS= read -r path; do
   a="${old%%/}/$path"
@@ -34,5 +40,5 @@ cat <(cd $old && git ls-files "$@") <(cd $new && git ls-files "$@") | sort -u | 
     b=/dev/null
   fi
   # ... and send the file to ksdiff only if there are changes
-  diff -q "$a" "$b" > /dev/null || ksdiff --partial-changeset --relative-path "$path" "$a" "$b" < /dev/null
+  diff -q "$a" "$b" > /dev/null || ksdiff --partial-changeset --label "$label" --relative-path "$path" "$a" "$b" < /dev/null
 done
